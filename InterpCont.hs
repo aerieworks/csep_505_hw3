@@ -53,15 +53,43 @@ less = wrapBinaryArithOp "<" (\x y -> (BoolV (x < y)))
 
 unimplemented name = PrimV name (\v k -> Err (name ++ ": unimplemented"))
 
-cons = unimplemented "cons"
-consP = unimplemented "cons?"
-emptyP = unimplemented "empty?"
-first = unimplemented "first"
-rest = unimplemented "rest"
+cons = PrimV "cons"
+  (\v k -> callK k (PrimV "partial:cons"
+    (\list k ->
+      case list of
+        ConsV _ _ -> callK k (ConsV v list)
+        EmptyV -> callK k (ConsV v EmptyV)
+        otherwise -> Err ("cons applied to: " ++ (show list)))))
+consP = PrimV "cons?"
+  (\v k -> callK k (
+    case v of
+      ConsV _ _ -> BoolV True
+      otherwise -> BoolV False))
+emptyP = PrimV "empty?"
+  (\v k -> callK k (
+    case v of
+      EmptyV -> BoolV True
+      otherwise -> BoolV False))
+first = PrimV "first"
+  (\v k -> case v of
+    ConsV h t -> callK k h
+    otherwise -> Err ("first applied to: " ++ (show v)))
+rest = PrimV "rest"
+  (\v k -> case v of
+    ConsV h t -> callK k t
+    otherwise -> Err ("rest applied to: " ++ (show v)))
 
-pair = unimplemented "pair"
-pairFst = unimplemented "fst"
-pairSnd = unimplemented "snd"
+pair = PrimV "pair"
+  (\f k -> callK k (PrimV "partial:pair"
+    (\s k -> callK k (PairV f s))))
+pairFst = PrimV "fst"
+  (\p k -> case p of
+    PairV f s -> callK k f
+    otherwise -> Err ("fst applied to: " ++ (show p)))
+pairSnd = PrimV "snd"
+  (\p k -> case p of
+    PairV f s -> callK k s
+    otherwise -> Err ("snd applied to: " ++ (show p)))
 
 raise = unimplemented "raise"
 callWithHandler = unimplemented "call-with-handler"
