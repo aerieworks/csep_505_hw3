@@ -109,7 +109,9 @@ callWithContext = PrimV "call-with-context"
     (\thunk k -> apply thunk (BoolV True) (ContextK ctx k))))
 getContext = PrimV "get-context"
   (\_ k -> callK k (buildContextList k))
-callCc = unimplemented "call/cc"
+
+callCc = PrimV "call/cc"
+  (\thunk k -> apply thunk (PrimV "call/cc continuation" (\arg k' -> callK k arg)) k)
 
 bind prim@(PrimV name fn) = (name, prim)
 bind nonPrim = error ("cannot bind " ++ (show nonPrim))
