@@ -3,7 +3,7 @@
   (fun (_)
        (call-with-context
          3
-         (fun (_) ((fun (ctx) { * (first ctx) (first (rest ctx)) }) (get-context _)))
+         (fun (_) ((fun (ctx) { pair (first ctx) (first (rest ctx)) }) (get-context _)))
          )
        )
   )

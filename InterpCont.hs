@@ -108,21 +108,21 @@ callWithContext = PrimV "call-with-context"
   (\ctx k -> callK k (PrimV "partial:call-with-context"
     (\thunk k -> apply thunk (BoolV True) (ContextK ctx k))))
 getContext = PrimV "get-context"
-  (\_ k -> callK k (buildContextList k EmptyV))
+  (\_ k -> callK k (buildContextList k))
 callCc = unimplemented "call/cc"
 
 bind prim@(PrimV name fn) = (name, prim)
 bind nonPrim = error ("cannot bind " ++ (show nonPrim))
 
-buildContextList :: Cont -> Val -> Val
-buildContextList k list =
+buildContextList :: Cont -> Val
+buildContextList k =
   case k of
-    DoneK -> list
-    IfK _ _ _ outerK -> buildContextList outerK list
-    AppK _ _ outerK -> buildContextList outerK list
-    ArgK _ _ outerK -> buildContextList outerK list
-    HandleK _ outerK -> buildContextList outerK list
-    ContextK ctx outerK -> buildContextList outerK (ConsV ctx list)
+    DoneK -> EmptyV
+    IfK _ _ _ outerK -> buildContextList outerK
+    AppK _ _ outerK -> buildContextList outerK
+    ArgK _ _ outerK -> buildContextList outerK
+    HandleK _ outerK -> buildContextList outerK
+    ContextK ctx outerK -> ConsV ctx (buildContextList outerK)
 
 -- Populate initialEnv ...
 initialEnv :: Env
