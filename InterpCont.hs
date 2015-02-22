@@ -29,7 +29,8 @@ instance Show Val where
 
 data Cont = DoneK
           | IfK CExpr CExpr Env Cont
-            -- Fill in other variants here.
+          | AppK Val Env Cont
+          | ArgK CExpr Env Cont
           deriving Show
 
 handleError :: Cont -> Val -> Result Val
@@ -55,14 +56,14 @@ unimplemented name = PrimV name (\v k -> Err (name ++ ": unimplemented"))
 cons = unimplemented "cons"
 consP = unimplemented "cons?"
 emptyP = unimplemented "empty?"
-first = unimplemented "first" 
-rest = unimplemented "rest" 
+first = unimplemented "first"
+rest = unimplemented "rest"
 
-pair = unimplemented "pair" 
-pairFst = unimplemented "fst" 
-pairSnd = unimplemented "snd" 
+pair = unimplemented "pair"
+pairFst = unimplemented "fst"
+pairSnd = unimplemented "snd"
 
-raise = unimplemented "raise" 
+raise = unimplemented "raise"
 callWithHandler = unimplemented "call-with-handler"
 callWithContext = unimplemented "call-with-context"
 getContext = unimplemented "get-context"
@@ -92,7 +93,7 @@ interp expr env k =
       Nothing -> Err ("unbound id: " ++ v)
       Just val -> callK k val
    IfC cond cons alt -> interp cond env (IfK cons alt env k)
-   AppC fun arg -> Err "interp AppC unimplemented"
+   AppC fun arg -> interp fun env (ArgK arg env k)
 
 callK :: Cont -> Val -> Result Val
 callK k val =
@@ -103,6 +104,8 @@ callK k val =
       BoolV True -> interp cons env k
       BoolV False -> interp alt env k
       nonBool -> Err ("`if` expected bool, got: " ++ (show nonBool))
+   ArgK arg env k -> interp arg env (AppK val env k)
+   AppK fv env k -> apply fv val k
 
 parseCheckAndInterpStr :: String -> Result Val
 parseCheckAndInterpStr str =
@@ -115,4 +118,13 @@ parseCheckAndInterpStr str =
      interp cexp initialEnv DoneK
 
 apply :: Val -> Val -> Cont -> Result Val
-apply fv val k = Err "apply unimplemented"
+apply fv val k =
+  case fv of
+    FunV var body closEnv -> interp body ((var, val):closEnv) k
+    PrimV _ impl -> impl val k
+    otherwise -> Err ("Application expects applicable, got: " ++ (show fv))
+
+runFile :: String -> IO ()
+runFile filename =
+  do input <- readFile filename
+     putStr (show (parseCheckAndInterpStr input) ++ "\n")
