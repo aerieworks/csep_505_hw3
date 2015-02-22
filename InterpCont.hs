@@ -31,10 +31,16 @@ data Cont = DoneK
           | IfK CExpr CExpr Env Cont
           | AppK Val Env Cont
           | ArgK CExpr Env Cont
+          | HandleK Val Cont
           deriving Show
 
 handleError :: Cont -> Val -> Result Val
-handleError _ = \val -> Err ("unhandled error: " ++ (show val))
+handleError k val = case k of
+  IfK _ _ _ outerK -> handleError outerK val
+  AppK _ _ outerK -> handleError outerK val
+  ArgK _ _ outerK -> handleError outerK val
+  HandleK handler outerK -> apply handler val outerK
+  DoneK -> Err ("unhandled error: " ++ (show val))
 
 wrapBinaryArithOp :: String -> (Integer -> Integer -> Val) -> Val
 wrapBinaryArithOp name op =
@@ -91,8 +97,11 @@ pairSnd = PrimV "snd"
     PairV f s -> callK k s
     otherwise -> Err ("snd applied to: " ++ (show p)))
 
-raise = unimplemented "raise"
-callWithHandler = unimplemented "call-with-handler"
+raise = PrimV "raise" (\err k -> handleError k err)
+callWithHandler = PrimV "call-with-handler"
+  (\thunk k -> callK k (PrimV "partial:call-with-handler"
+    (\handler k -> apply thunk (BoolV True) (HandleK handler k))))
+
 callWithContext = unimplemented "call-with-context"
 getContext = unimplemented "get-context"
 callCc = unimplemented "call/cc"
@@ -134,6 +143,7 @@ callK k val =
       nonBool -> Err ("`if` expected bool, got: " ++ (show nonBool))
    ArgK arg env k -> interp arg env (AppK val env k)
    AppK fv env k -> apply fv val k
+   HandleK handler k -> callK k val
 
 parseCheckAndInterpStr :: String -> Result Val
 parseCheckAndInterpStr str =
