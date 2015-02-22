@@ -32,6 +32,7 @@ data Cont = DoneK
           | AppK Val Env Cont
           | ArgK CExpr Env Cont
           | HandleK Val Cont
+          | ContextK Val Cont
           deriving Show
 
 handleError :: Cont -> Val -> Result Val
@@ -39,6 +40,7 @@ handleError k val = case k of
   IfK _ _ _ outerK -> handleError outerK val
   AppK _ _ outerK -> handleError outerK val
   ArgK _ _ outerK -> handleError outerK val
+  ContextK _ outerK -> handleError outerK val
   HandleK handler outerK -> apply handler val outerK
   DoneK -> Err ("unhandled error: " ++ (show val))
 
@@ -102,12 +104,25 @@ callWithHandler = PrimV "call-with-handler"
   (\thunk k -> callK k (PrimV "partial:call-with-handler"
     (\handler k -> apply thunk (BoolV True) (HandleK handler k))))
 
-callWithContext = unimplemented "call-with-context"
-getContext = unimplemented "get-context"
+callWithContext = PrimV "call-with-context"
+  (\ctx k -> callK k (PrimV "partial:call-with-context"
+    (\thunk k -> apply thunk (BoolV True) (ContextK ctx k))))
+getContext = PrimV "get-context"
+  (\_ k -> callK k (buildContextList k EmptyV))
 callCc = unimplemented "call/cc"
 
 bind prim@(PrimV name fn) = (name, prim)
 bind nonPrim = error ("cannot bind " ++ (show nonPrim))
+
+buildContextList :: Cont -> Val -> Val
+buildContextList k list =
+  case k of
+    DoneK -> list
+    IfK _ _ _ outerK -> buildContextList outerK list
+    AppK _ _ outerK -> buildContextList outerK list
+    ArgK _ _ outerK -> buildContextList outerK list
+    HandleK _ outerK -> buildContextList outerK list
+    ContextK ctx outerK -> buildContextList outerK (ConsV ctx list)
 
 -- Populate initialEnv ...
 initialEnv :: Env
@@ -143,7 +158,8 @@ callK k val =
       nonBool -> Err ("`if` expected bool, got: " ++ (show nonBool))
    ArgK arg env k -> interp arg env (AppK val env k)
    AppK fv env k -> apply fv val k
-   HandleK handler k -> callK k val
+   HandleK _ k -> callK k val
+   ContextK _ k -> callK k val
 
 parseCheckAndInterpStr :: String -> Result Val
 parseCheckAndInterpStr str =
